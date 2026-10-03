@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Search, Music, Heart, List, Filter, X, Plus } from 'lucide-react';
+import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Search, Music, Heart, List, Filter, X, Plus, Shuffle } from 'lucide-react';
 
 export default function ArchiveMusicPlayer() {
 const [searchQuery, setSearchQuery] = useState('');
@@ -22,6 +22,8 @@ const [yearTo, setYearTo] = useState('');
 const [showCreatePlaylist, setShowCreatePlaylist] = useState(false);
 const [newPlaylistName, setNewPlaylistName] = useState('');
 const [currentPlaylist, setCurrentPlaylist] = useState(null);
+const [isShuffle, setIsShuffle] = useState(false);
+const [trackLoading, setTrackLoading] = useState(false);
 const audioRef = useRef(null);
 
 useEffect(() => {
@@ -62,6 +64,7 @@ setLoading(false);
 };
 
 const loadTrack = async (identifier, title, creator) => {
+setTrackLoading(true);
 try {
 const metadataResponse = await fetch(`https://archive.org/metadata/${identifier}`);
 const metadata = await metadataResponse.json();
@@ -86,6 +89,7 @@ setIsPlaying(true);
 } catch (error) {
 console.error('Error loading track:', error);
 }
+setTrackLoading(false);
 };
 
 const toggleFavorite = (item) => {
@@ -188,6 +192,18 @@ audioRef.current.pause();
 }
 }, [isPlaying]);
 
+useEffect(() => {
+const handleKeyDown = (e) => {
+if (e.key === ' ') {
+e.preventDefault();
+setIsPlaying((p) => !p);
+}
+};
+
+window.addEventListener('keydown', handleKeyDown);
+return () => window.removeEventListener('keydown', handleKeyDown);
+}, []);
+
 const togglePlay = () => {
 setIsPlaying(!isPlaying);
 };
@@ -217,8 +233,14 @@ return searchResults;
 
 const playNext = () => {
 const list = getCurrentList();
+if (list.length === 0) return;
 const currentIndex = list.findIndex(r => r.identifier === currentTrack?.identifier);
-if (currentIndex < list.length - 1) {
+
+if (isShuffle) {
+const available = list.filter((_, i) => i !== currentIndex);
+const next = available[Math.floor(Math.random() * available.length)];
+if (next) loadTrack(next.identifier, next.title, next.creator);
+} else if (currentIndex < list.length - 1) {
 const next = list[currentIndex + 1];
 loadTrack(next.identifier, next.title, next.creator);
 }
@@ -226,8 +248,14 @@ loadTrack(next.identifier, next.title, next.creator);
 
 const playPrevious = () => {
 const list = getCurrentList();
+if (list.length === 0) return;
 const currentIndex = list.findIndex(r => r.identifier === currentTrack?.identifier);
-if (currentIndex > 0) {
+
+if (isShuffle) {
+const available = list.filter((_, i) => i !== currentIndex);
+const prev = available[Math.floor(Math.random() * available.length)];
+if (prev) loadTrack(prev.identifier, prev.title, prev.creator);
+} else if (currentIndex > 0) {
 const prev = list[currentIndex - 1];
 loadTrack(prev.identifier, prev.title, prev.creator);
 }
@@ -625,6 +653,15 @@ className="w-full"
 
 <div className="flex items-center gap-4">
 <button
+onClick={() => setIsShuffle(!isShuffle)}
+title={isShuffle ? 'Shuffle on' : 'Shuffle off'}
+className={`p-2 rounded-full transition-colors ${
+isShuffle ? 'bg-blue-500 text-white' : 'hover:bg-white/10 text-white/60'
+}`}
+>
+<Shuffle className="w-5 h-5" />
+</button>
+<button
 onClick={playPrevious}
 className="p-2 hover:bg-white/10 rounded-full transition-colors"
 >
@@ -632,9 +669,14 @@ className="p-2 hover:bg-white/10 rounded-full transition-colors"
 </button>
 <button
 onClick={togglePlay}
-className="p-4 bg-blue-500 hover:bg-blue-600 rounded-full transition-colors"
+disabled={!currentTrack || trackLoading}
+className="p-4 bg-blue-500 hover:bg-blue-600 rounded-full transition-colors disabled:opacity-50"
 >
-{isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
+{trackLoading ? (
+<span className="inline-block w-6 h-6 border-2 border-white/50 border-t-white rounded-full animate-spin"></span>
+) : (
+isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />
+)}
 </button>
 <button
 onClick={playNext}
